@@ -1,0 +1,73 @@
+# NEXUS INVEST - COMPLETE PROJECT ARCHITECTURE & EXPLANATION
+
+Welcome to the complete walkthrough of Nexus Invest, your full-stack fintech platform! 
+
+Think of building an app like building a restaurant:
+1. The Frontend (React) is the dining room where the customers sit. It needs to look beautiful and be easy to interact with.
+2. The Backend (Node.js & Express) is the kitchen. It processes orders and makes sure the rules are followed.
+3. The Database (MongoDB) is the pantry. It securely stores all your ingredients (data) for long-term use.
+
+Let's walk through every single room of your restaurant and see how it works!
+
+-------------------------------------------------------------------
+1. THE FRONTEND (The Dining Room)
+-------------------------------------------------------------------
+This is built with React and styled with Tailwind CSS. It runs on port 5173.
+
+* src/App.jsx (The Front Door): 
+  This is the master controller of your website. It uses `react-router-dom` to decide which page to show the user based on the URL (e.g., if they go to `/login`, show the Login page). It also wraps the app in "Providers" (like AuthContext), which are like invisible clouds that share data to every page.
+
+* src/api.js (The Waiter): 
+  This file uses a library called Axios. It acts as your messenger. Whenever a component needs data from the backend, it asks api.js to go fetch it. Crucially, it attaches the user's secret "JWT Token" to every request to prove to the backend that the user is securely logged in.
+
+* src/context/AuthContext.jsx (The Brain): 
+  This file remembers who the user is and how much money is in their wallet. When you buy a stock, components call `refreshBalance()` from here, which asks the backend for the new balance and updates the whole screen instantly.
+
+Key Components (src/components/):
+* Login.jsx: The gateway. It contains the logic for signing up (including dynamic State/City dropdowns), logging in, and changing passwords.
+* Sidebar.jsx & DashboardLayout.jsx: The navigation wrapper that keeps your app looking like a real dashboard.
+* Portfolio.jsx: The user's vault. It calculates their total returns, shows what stocks they own, and lets them sell stocks.
+* PaymentUI.jsx: The teller window. It allows users to dynamically toggle between depositing and withdrawing funds from their wallet.
+* Profile.jsx: Allows the user to customize their identity (adding a bio, profile image, background image).
+
+-------------------------------------------------------------------
+2. THE BACKEND (The Kitchen)
+-------------------------------------------------------------------
+This is built with Node.js and Express. It runs on port 4000.
+
+* server.js (The Head Chef): 
+  This is the entry point of your backend. It connects to the MongoDB database, accepts incoming requests from the frontend, and routes them to the right places. It also runs a Socket.IO server that broadcasts fake, real-time stock price updates to the frontend every 10 seconds.
+
+* middleware/auth.js (The Bouncer): 
+  Before the backend gives any private data (like portfolio details), this file intercepts the request, checks if the user's JWT token is valid, and checks if their account is locked. If they don't have a valid token, the bouncer rejects them.
+
+The Routes (backend/routes/):
+* auth.js (Public Routes): Handles things people can do WITHOUT being logged in: Signing up, logging in, and requesting password resets.
+* data.js (Protected Routes): Handles things only LOGGED-IN users can do: Getting their portfolio, buying/selling stocks (/orders), managing funds (/deposit, /withdraw), and editing their profile.
+
+The Services (backend/services/):
+To keep the routes clean, complex business logic is stored here.
+* signup.js & login.js: Checks passwords, locks accounts after 5 failed tries, and triggers 2FA emails.
+* utils.js: A toolbox file. It contains the sendEmail function (which uses Nodemailer to actually send emails to users' inboxes), password hashing logic (bcrypt), and JWT token generation.
+* verifyLoginOTP.js: The final step of login. It checks the 6-digit code the user typed against the one sent to their email. If it matches, it grants them a token and sends a "Verification Successful" email template.
+
+-------------------------------------------------------------------
+3. THE DATABASE (The Pantry)
+-------------------------------------------------------------------
+This uses MongoDB with Mongoose (which helps structure the data).
+
+The Models (backend/models/):
+* User.js: The blueprint for a user. It stores their email, encrypted password, name, state, city, walletBalance, and security settings.
+* Holding.js: A record of what a user currently owns. If they buy 5 shares of AAPL, a document is created here. If they sell all 5, the document is deleted.
+* Order.js: The permanent receipt book. Every time a user clicks "Buy" or "Sell" or adds funds, a permanent, un-deletable record is created here for their financial reports.
+
+-------------------------------------------------------------------
+4. HOW DATA FLOWS (Example: Withdrawing Funds)
+-------------------------------------------------------------------
+To understand how it all connects, let's trace exactly what happens when you click "Confirm Withdrawal" to withdraw ₹5,000:
+
+1. Frontend: You click the button in `PaymentUI.jsx`.
+2. Request: `PaymentUI.jsx` asks `api.js` to send a POST request to `http://localhost:4000/api/withdraw` with `{ amount: 5000 }`.
+3. Security Check: The request hits the backend. The Bouncer (`middleware/auth.js`) looks at the JWT token, verifies you are who you say you are, and lets the request pass.
+4. Database Update: The router (`routes/data.js`) finds your user profile in MongoDB, checks if you have enough money, subtracts 5000 from your `walletBalance`, and saves it.
+5. Response & UI Update: The backend sends a "Success" message back to the frontend. The frontend shows a green success notification, and AuthContext quietly asks the backend for your new balance so the Sidebar updates instantly.
